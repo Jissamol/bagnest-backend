@@ -54,3 +54,5 @@ class UserPermissions(BasePermission):
     password_change_perms = AllowAny()
     register_perms = AllowAny()
     registered_list_perms = AllowAny()
+    categories_perms = AllowAny()
+    product_perms = AllowAny()
