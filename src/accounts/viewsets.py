@@ -1,23 +1,14 @@
 from django.contrib.auth import authenticate, login
 from django.contrib.auth import logout
-from rest_framework import status
-from rest_framework import viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from .filters import UserFilter
-from .models import User,Category, Product
+from .models import User
 from .serializers import UserSerializer, UserBasicDataSerializer, UserRegistrationSerializer, LoginSerializer
 from rest_framework.permissions import IsAuthenticated
-from .serializers import CategorySerializer
 
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import PermissionDenied
-from src.accounts.models import Category
 from src.accounts.serializers import CategorySerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -25,7 +16,7 @@ from rest_framework import status
 from .models import Product, Category
 from rest_framework.exceptions import ValidationError
 from .serializers import ProductSerializer
-
+from rest_framework import viewsets
 
 class StandardResultsSetPagination(PageNumberPagination):
     page_size = 10
@@ -190,10 +181,30 @@ class CategoryViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK
         )
 
+
 class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.all()
     serializer_class = ProductSerializer
     pagination_class = PageNumberPagination
+
+    def get_queryset(self):
+        category_id = self.kwargs.get('category_id')  # Retrieve category_id from URL parameters
+
+        # If category_id is provided, filter products by category
+        if category_id:
+            return Product.objects.filter(category_id=category_id)  # Filter products by category_id
+
+        return Product.objects.all()  # Return all products if no category_id is specified
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()  # Get filtered queryset by category_id
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            return self.get_paginated_response(ProductSerializer(page, many=True).data)
+
+        return Response(
+            {"message": "Successfully fetched", "data": ProductSerializer(queryset, many=True).data},
+            status=status.HTTP_200_OK
+        )
 
     @action(detail=False, methods=['POST'])
     def product(self, request):
@@ -211,13 +222,3 @@ class ProductViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    def list(self, request, *args, **kwargs):
-        queryset = Product.objects.all()
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            return self.get_paginated_response(ProductSerializer(page, many=True).data)
-
-        return Response(
-            {"message": "Successfully fetched", "data": ProductSerializer(queryset, many=True).data},
-            status=status.HTTP_200_OK
-        )
