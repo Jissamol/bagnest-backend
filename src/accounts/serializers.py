@@ -1,9 +1,10 @@
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
-from .models import User, Category
+from .models import User, Category, Cart
 
 from .models import Product
+
 
 class UserSerializer(serializers.ModelSerializer):
     """
@@ -25,6 +26,7 @@ class UserBasicDataSerializer(serializers.ModelSerializer):
             'id', 'first_name', 'address', 'last_name', 'mobile', 'email', 'is_active'
         )
 
+
 class LoginSerializer(serializers.Serializer):
     """
     Login serializer to authenticate using email and password
@@ -40,6 +42,7 @@ class LoginSerializer(serializers.Serializer):
         }
     )
     password = serializers.CharField(max_length=128)
+
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     """
@@ -97,7 +100,21 @@ class CategorySerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
-        fields = ['id', 'name', 'category', 'price','stock','image','description']
+        fields = ['id', 'name', 'category', 'price', 'stock', 'image', 'description']
 
     category = serializers.PrimaryKeyRelatedField(queryset=Category.objects.all())
     image = serializers.ImageField(required=False)
+
+from rest_framework import serializers
+from .models import Cart
+
+# Cart Serializer
+class CartSerializer(serializers.ModelSerializer):
+    total_price = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Cart
+        fields = ['id', 'product', 'quantity', 'added_at', 'total_price']
+
+    def get_total_price(self, obj):
+        return obj.total_price()

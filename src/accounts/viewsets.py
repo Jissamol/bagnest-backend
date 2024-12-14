@@ -1,22 +1,31 @@
 from django.contrib.auth import authenticate, login
 from django.contrib.auth import logout
 from rest_framework.authtoken.models import Token
-from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.exceptions import PermissionDenied
 from .filters import UserFilter
 from .models import User
 from .serializers import UserSerializer, UserBasicDataSerializer, UserRegistrationSerializer, LoginSerializer
+
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth import authenticate
+from .serializers import LoginSerializer
+
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from .models import Cart, Product
+from .serializers import CartSerializer
+
 from rest_framework.permissions import IsAuthenticated
 
 from src.accounts.serializers import CategorySerializer
 from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework import status
-from .models import Product, Category
+from .models import Category
 from rest_framework.exceptions import ValidationError
 from .serializers import ProductSerializer
 from rest_framework import viewsets
+
 
 class StandardResultsSetPagination(PageNumberPagination):
     page_size = 10
@@ -36,6 +45,9 @@ class UserViewSet(viewsets.ModelViewSet):
         self.filterset_class = UserFilter
         queryset = self.filter_queryset(queryset)
         return queryset
+
+    @action(detail=False, methods=['POST'])
+    #
 
     @action(detail=False, methods=['POST'])
     def login(self, request):
@@ -61,17 +73,17 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Generate or fetch the authentication token
-        token, created = Token.objects.get_or_create(user=user)
-        login(request, user)
+        # Generate JWT token
+        refresh = RefreshToken.for_user(user)
+        access_token = str(refresh.access_token)
 
         # Determine role based on is_superuser
         role = "admin" if user.is_superuser else "customer"
 
         auth_data = {
-            "token": token.key,
+            "token": access_token,
             "user": UserSerializer(instance=user, context={'request': request}).data,
-            "role": role  # Include role in response
+            "role": role
         }
 
         return Response(
@@ -79,11 +91,18 @@ class UserViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK
         )
 
-
+    # @action(detail=False, methods=['POST'])
+    # def logout(self, request):
+    #     if request.user.is_authenticated:
+    #         Token.objects.filter(user=request.user).delete()
+    #         logout(request)
+    #     return Response(
+    #         {"message": "Successfully logged out."},
+    #         status=status.HTTP_200_OK)
     @action(detail=False, methods=['POST'])
     def logout(self, request):
         if request.user.is_authenticated:
-            Token.objects.filter(user=request.user).delete()
+            Token.objects.filter(user=request.user).delete()  # Delete the token
             logout(request)
         return Response(
             {"message": "Successfully logged out."},
@@ -119,8 +138,6 @@ class UserViewSet(viewsets.ModelViewSet):
             {"message": "Successfully fetched", "data": UserBasicDataSerializer(queryset, many=True).data},
             status=status.HTTP_200_OK
         )
-
-
 
     @action(detail=False, methods=['POST'])
     def password_change(self, request):
@@ -217,6 +234,22 @@ class ProductViewSet(viewsets.ModelViewSet):
             data = ProductSerializer(product).data
             return Response(
                 {"message": "Product created successfully", "data": data},
+                status=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['POST'])
+    def cart(self, request):
+        try:
+            serializer = CartSerializer(data=request.data)
+            if not serializer.is_valid():
+                return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+            cart = serializer.save()
+            data = CartSerializer(cart).data
+            return Response(
+                {"message": "cart created successfully", "data": data},
                 status=status.HTTP_201_CREATED
             )
         except Exception as e:
